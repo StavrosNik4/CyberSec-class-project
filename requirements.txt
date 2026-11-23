@@ -1,0 +1,24 @@
+# Python 3.12 is required: modelscan only supports Python < 3.13.
+#   python3.12 -m venv .venv && . .venv/bin/activate
+#   pip install -r requirements.txt
+# For a smaller, CPU-only PyTorch install, run this first:
+#   pip install torch==2.15.0 torchvision==0.29.2 --index-url https://download.pytorch.org/whl/cpu
+
+# Model, data, experiments
+torch==2.15.0
+torchvision==0.29.2
+numpy==2.5.4
+scipy==1.18.1
+pandas==3.1.0
+matplotlib==3.11.2
+
+# Notebooks
+notebook==7.5.8
+ipykernel==7.4.0
+
+# Model file formats and scanners
+safetensors==0.8.0
+picklescan==1.0.5
+modelscan==0.8.8
+fickling==0.1.12
+yara-python==4.5.4
