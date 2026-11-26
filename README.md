@@ -20,9 +20,16 @@ them:
   protected by error-correcting codes. Each weight barely moves, and the payload **survives model
   modifications** (pruning, noise, quantization) that destroy the other two methods.
 
-**`src/sanitization_demo.ipynb` — sanitization.** Embeds a watermark, then applies cheap defenses
-(mantissa-bit randomization, int8 quantization) and measures how completely each destroys the hidden data
-versus what it costs in model accuracy.
+**`src/sanitization_demo.ipynb` — sanitization.** Embeds a watermark, then applies three cheap "disarm"
+defenses and measures how completely each destroys the hidden data versus what it costs in model accuracy:
+
+- **Full LSB prevention** — replace *all* mantissa bits with random bits. Very high prevention rate, but
+  the most disruptive to the model.
+- **K-LSB prevention** — replace only the lowest *k* mantissa bits. Preserves nearly all of the model's
+  accuracy; the right choice of *k* matters.
+- **Model quantization (int8)** — convert weights from 32-bit float to 8-bit integer. Rounding erases the
+  LSB-hidden data as a side effect: near-100% prevention with accuracy well preserved, at the cost of some
+  precision loss.
 
 ## Setup
 
