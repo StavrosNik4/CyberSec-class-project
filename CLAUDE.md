@@ -2,58 +2,103 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## What is here
+## What this is
 
-`src/` contains the AI watermarking example from Module 6 ("Information Hiding") of the UniPV *Foundations of Cybersecurity* course (upstream `https://github.com/lucacav/foc`, `Module 6 - Information Hiding/Examples/AI/`). The code belongs to **Angelica Liguori**, as credited in the course README. Any reuse of it must be attributed.
+Code for a University of Pavia *Foundations of Cybersecurity* (2026/27) team assignment, **Team 8 —
+"Hidden data in AI model weights."** It is a defensive/educational demonstration of model-weight
+steganography on a tiny MNIST network. The assignment has three parts; this repo currently holds two:
 
-- `AI LSB.ipynb`: trains a small CNN on MNIST, saves it, embeds a text watermark (`"AI4SS"`) into the weights, re-tests accuracy, and extracts the watermark.
-- `AI LSB dropout.ipynb`: identical except for one change, `nn.Dropout(p=0.5)` after `fc1`. Dropout has no parameters, so the `state_dict` keys are the same in both versions.
-- `net.pt`: a trained **`state_dict`**, not a pickled model object. Load it with `net = Net(); net.load_state_dict(torch.load("net.pt"))`. It is a zip containing `archive/data.pkl` and the tensor blobs. It holds about 73k float32 parameters, about 290 KB.
+- **Part A — embedding & capacity:** `src/embed_demo.ipynb`
+- **Part B — sanitization & robustness:** `src/sanitization_demo.ipynb`
+- Part C (detection) is not implemented yet.
 
-There is no build or test system and no `requirements.txt` yet. The notebooks need `torch`, `torchvision`, `numpy`, `matplotlib` and Jupyter, none of which are installed system-wide.
+`TICKETS - Team 8.md` is the working brief (owners, interface contract, constraints). The model and MNIST
+pipeline derive from the course Module 6 "Information Hiding" example by **Angelica Liguori** (upstream
+`https://github.com/lucacav/foc`); reuse of that code must stay attributed.
 
-## Model (`Net`)
+**Payload rule (do not break):** demonstrations use only **harmless** payloads — short text, random bytes,
+or payload *sizes* (e.g. EICAR's 68 bytes). No live malware, no binaries written to disk, no extractor/loader
+that executes recovered bytes.
 
-The input is a 1×28×28 image. The layers are:
+## Setup and running
 
-| Parameter | Shape | Note |
-|---|---|---|
-| `embedder.0` | Conv 1→32, k3, s2 | |
-| `embedder.2` | Conv 32→64, k3, s2 | |
-| `embedder.4` | Conv 64→64, k3, s2 | spatial size 28→13→6→2 |
-| `fc1` | 256→64 | |
-| `fc2` | 64→8 | **the watermark target**: `fc2.weight` holds 512 values |
-| `out` | 8→10 | |
+Python **3.12 is required** (a pinned scanner dependency, modelscan, excludes 3.13). PyTorch is CPU-only.
 
-ReLU sits between the layers. Weights are initialised with Kaiming normal (convs) and N(0, 0.01) (linear layers), and biases with 0.
+```bash
+# from the repo root
+uv venv --python 3.12
+uv pip install -r requirements.txt --torch-backend cpu   # or: pip install -r requirements.txt
+source .venv/bin/activate
+```
 
-Training uses Adam with lr 1e-3, CrossEntropy, batch 64, 20 epochs and seed 101. MNIST is downloaded to `./data`.
+The deliverables are Jupyter notebooks, run top to bottom. There is **no build, lint, or test suite.**
 
-## How the embedding works (cell 4)
+```bash
+# run a notebook headless (re-executes every cell in place)
+jupyter nbconvert --to notebook --execute --inplace src/embed_demo.ipynb
+```
 
-- `float_to_bin(x)` turns a float32 into a 32-character bit string using `np.float32(x).tobytes()`.
-- `add_watermark_lsb(net, watermark)`:
-  - turns each ASCII character into 8 bits;
-  - for each element of `fc2.weight` in `np.ndindex` order, replaces the **last character** of that bit string with the next watermark bit;
-  - writes the changed values back with `param.copy_`.
-- `extract_watermark(net, length)` reads the last character of every `fc2.weight` element, groups the bits into bytes, and truncates the result to `length` characters.
+MNIST auto-downloads to `src/data/` on first use. `.venv/`, `src/data/`, and `papers/` are gitignored.
 
-One bit per weight over 512 weights gives a capacity of at most 64 bytes.
+## Two models, two saved weight files
 
-The code loops over elements in pure Python and string-converts every single float. That is fine for 512 weights but too slow for whole-model use. Vectorised NumPy bit operations would be needed for that.
+Both notebooks share the same architectures but use different saved weights. Keep these straight:
 
-## Known issues (verified)
+| File | Class | Shape | ~Params | Baseline acc |
+|---|---|---|---|---|
+| `src/net.pt` | `NetCNN` (embed_demo) / `Net` (sanitization) | Module 6 CNN: conv ×3 → `fc1` 256→64 → `fc2` 64→8 → `out` 8→10 | ~73k | ~98.6% |
+| `src/pretrained_fc.pt` | `NetFC` (embed_demo only) | `784 → 32 → 10` fully-connected | 25,450 | ~94.6% |
 
-- **The edit does not change the least significant bit of the float on little-endian machines (x86/ARM).** `tobytes()` uses native little-endian byte order, so the last character of the string is bit 24 of the IEEE-754 float, which is an **exponent** bit, not mantissa bit 0.
-  - The round trip `bin_to_float(float_to_bin(x))` is still consistent, because it reads with `to_bytes(..., 'big')` followed by a native `frombuffer`. That is why extraction works.
-  - Each changed weight is multiplied or divided by 4. This was reproduced with `struct`, and it matches the notebook's own printed output, e.g. `3.5238e-02 → 8.8095e-03` and `2.5852e-01 → 1.0341e+00`.
-  - This explains the accuracy drop recorded in the notebook, **98.58% → 94.68%**. The dropout version drops only 98.83% → 98.75%. That comes from a different training run, and why it drops less hasn't been checked.
-  - A true mantissa-LSB edit needs either big-endian packing (`np.float32(x).newbyteorder('>')`, or `struct.pack('>f', x)`) or integer bit operations on `.view(np.uint32)`.
-- `torch.use_deterministic_algorithms = True` (cell 1) **overwrites** the function instead of calling it, so determinism is not actually enabled. The call should be `torch.use_deterministic_algorithms(True)`.
-- `train()` and `test()` use the global `device` defined in cell 11, so they can't be imported as-is.
-- Running the training cell (cell 12) **overwrites `net.pt`**, because `path_model='net.pt'`. Retraining with a different seed or on GPU gives different weights from the shipped file.
-- `add_watermark_lsb` changes `net` in place. Reload `net.pt` before each new experiment.
+`net.pt` is a trained **`state_dict`** (a zip, not a pickled object); load with `Net(); load_state_dict(...)`.
+The watermark/payload target layer in the CNN is **`fc2.weight`** (512 values).
 
-## Safety
+## `embed_demo.ipynb` — embedding (Part A)
 
-`torch.load` unpickles its input. Load only files created locally or taken from the course. Recent PyTorch versions default to `weights_only=True`, which is fine for this `state_dict`.
+Self-contained. A `TARGET` variable switches the model: `"fc"` reloads/trains `pretrained_fc.pt` (trains ~3
+epochs and saves it on first run if missing), `"pretrained"` loads the CNN from `net.pt`. Structure:
+
+- **§2 Method A — LSB substitution** (`embed_payload`/`extract_payload`): packs each weight **big-endian**
+  and overwrites its lowest `n_bytes` with payload bytes; end marked by escape `deadbeef`. `n_bytes=1` is
+  invisible to accuracy; a depth sweep shows the capacity-vs-fidelity cliff (`n_bytes=3` → ~88%). No side
+  information needed.
+- **§3 Method B — Value-mapping** (`low_bytes`/`value_map_embed`/`value_map_extract`): does **not** change
+  weights; it searches for weights whose low byte already equals each payload byte and stores their **index
+  map** (the side information, larger than the payload). With matches found the model is byte-for-byte
+  identical (accuracy == baseline exactly).
+- **§4** compares the two on the same payload.
+
+All embedding runs on `copy.deepcopy(clean_sd)`, so **this notebook never modifies `net.pt` or
+`pretrained_fc.pt`.**
+
+## `sanitization_demo.ipynb` — sanitization (Part B)
+
+A modified copy of the course "AI LSB" notebook (uses a global `device`; the usual course structure of
+train/test/embed cells). It trains the CNN, embeds the watermark `"AI4SS"` into `fc2.weight` via LSB, then
+in the **Sanitization Part** applies defenses to the watermarked model and tabulates accuracy, text BER, and
+LSB-bit BER per method:
+
+- `sanitize_flp_k(net, device, k_bits, only_target_layer=...)`: **randomizes the low `k_bits` mantissa bits**
+  (float-precision reduction) via int32 bit-masking (`.view(torch.int32)`).
+- `sanitize_qint8(net, device, ...)`: symmetric **int8 quantize → dequantize** (scale = max|w|/127).
+
+The point: these cheap operations destroy the hidden payload (BER rises toward ~0.5) with little accuracy
+cost — so the same operations also erase legitimate watermarks.
+
+## Gotchas
+
+- **`sanitization_demo.ipynb` overwrites `src/net.pt`.** Its training cell calls `train(..., path_model='net.pt')`,
+  and `test()`/`train()` depend on a global `device`. Running it top-to-bottom retrains the CNN and
+  **replaces the shipped `net.pt`** (different weights). If you only want to sanitize, load the existing
+  `net.pt` instead of running the train cell; back up `net.pt` before re-running if the shipped weights matter.
+- The two notebooks define a same-named-but-different model situation: `embed_demo` has `NetFC` + `NetCNN`;
+  `sanitization_demo` has `Net` (== the CNN). `net.pt` fits the CNN/`Net`; `pretrained_fc.pt` fits `NetFC`.
+- **Inherited course bug:** `torch.use_deterministic_algorithms = True` (an assignment, not a call) does not
+  enable determinism. Present in `sanitization_demo.ipynb`; don't rely on it for reproducibility.
+- `torch.load` unpickles input — load only local/course files; recent PyTorch defaults to `weights_only=True`,
+  which is correct for these `state_dict`s.
+
+## Attribution
+
+Credit in borrowed work: the Module 6 example (Angelica Liguori); EvilModel (arXiv:2107.08590) for LSB byte
+substitution; StegoNet (Liu et al., ACSAC 2020, §4.2.2) for value-mapping. Add sources to the team's
+references as they are used.
