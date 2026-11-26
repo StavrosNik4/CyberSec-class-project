@@ -22,3 +22,6 @@ picklescan==1.0.5
 modelscan==0.8.8
 fickling==0.1.12
 yara-python==4.5.4
+
+# Spread-spectrum + LDPC embedding demo (MaleficNet); pulls in numba/llvmlite
+pyldpc==0.7.9

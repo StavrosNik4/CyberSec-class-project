@@ -33,6 +33,10 @@ source .venv/bin/activate
 
 The deliverables are Jupyter notebooks, run top to bottom. There is **no build, lint, or test suite.**
 
+`pyldpc` (MaleficNet's LDPC) has no wheel and builds from sdist needing numpy at build time; the single
+`uv pip install -r requirements.txt` above works because uv co-resolves numpy, but a bare
+`uv pip install pyldpc` into an empty env fails (install numpy first, or use `--no-build-isolation`).
+
 ```bash
 # run a notebook headless (re-executes every cell in place)
 jupyter nbconvert --to notebook --execute --inplace src/embed_demo.ipynb
@@ -65,9 +69,17 @@ epochs and saves it on first run if missing), `"pretrained"` loads the CNN from 
   weights; it searches for weights whose low byte already equals each payload byte and stores their **index
   map** (the side information, larger than the payload). With matches found the model is byte-for-byte
   identical (accuracy == baseline exactly).
-- **§4** compares the two on the same payload.
+- **§4 Method C — MaleficNet** (`maleficnet_embed`/`maleficnet_extract`): spread-spectrum (CDMA). The payload
+  is LDPC-encoded (via `pyldpc`, rate 1/2, with a 200-bit noise-estimation preamble) then spread across **all**
+  weights as a tiny ±γ signal (`γ=1e-3`); extraction is **blind** (correlate with the key-seeded spreading
+  codes, then LDPC-decode). Only side info is the integer **key**. A robustness cell applies prune / Gaussian
+  noise / fp16 / int8 (via `_attack` + `prune`/`add_noise`/`to_fp16`/`to_int8`) and shows the payload still
+  decodes — the method's whole point.
+- **§5** compares all three on the same payload, with a measured **"survives fp16"** column (LSB ✗,
+  value-mapping ✗, MaleficNet ✓).
 
-All embedding runs on `copy.deepcopy(clean_sd)`, so **this notebook never modifies `net.pt` or
+Helpers: `get_w`/`set_w` flatten/restore all `.weight` tensors; `accuracy_sd(sd)` scores a `state_dict`
+directly. All embedding runs on `copy.deepcopy(clean_sd)`, so **this notebook never modifies `net.pt` or
 `pretrained_fc.pt`.**
 
 ## `sanitization_demo.ipynb` — sanitization (Part B)

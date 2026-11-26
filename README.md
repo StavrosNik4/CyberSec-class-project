@@ -8,7 +8,7 @@ All payloads are **harmless** — short text or random bytes. No malware is used
 
 ## What it shows
 
-**`src/embed_demo.ipynb` — embedding.** Hides the same payload in a network's weights two ways and compares
+**`src/embed_demo.ipynb` — embedding.** Hides the same payload in a network's weights three ways and compares
 them:
 
 - **LSB substitution** — overwrite the lowest byte(s) of successive weights. Simple and high-capacity; a
@@ -16,6 +16,9 @@ them:
 - **Value-mapping** — leave the weights untouched and store an *index map* pointing to weights that already
   match the payload. The model stays byte-for-byte identical (no accuracy loss), at the cost of shipping a
   map larger than the payload.
+- **MaleficNet (spread-spectrum + LDPC)** — spread the payload across *all* weights as a tiny signal,
+  protected by error-correcting codes. Each weight barely moves, and the payload **survives model
+  modifications** (pruning, noise, quantization) that destroy the other two methods.
 
 **`src/sanitization_demo.ipynb` — sanitization.** Embeds a watermark, then applies cheap defenses
 (mantissa-bit randomization, int8 quantization) and measures how completely each destroys the hidden data
