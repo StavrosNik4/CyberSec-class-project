@@ -53,9 +53,21 @@ jupyter notebook src/embed_demo.ipynb
 
 ```
 src/
-  embed_demo.ipynb          embedding demos (LSB + value-mapping)
+  embed_demo.ipynb          embedding demos (LSB, value-mapping, MaleficNet)
   sanitization_demo.ipynb   sanitization / robustness demo
   net.pt                    trained CNN weights
   pretrained_fc.pt          trained fully-connected weights
 requirements.txt
 ```
+
+## References
+
+1. Z. Wang, C. Liu, X. Cui, "EvilModel: Hiding Malware Inside of Neural Network Models", 2021.
+2. Z. Wang et al., "EvilModel 2.0: Bringing Neural Network Models into Malware Attacks", 2023.
+3. D. Hitaj et al., "MaleficNet: Hiding Malware into Deep Neural Networks Using Spread-Spectrum Channel Coding", 2022.
+4. T. Liu et al., "StegoNet: Turn Deep Neural Network into a Stegomalware", 2020.
+5. Y. Nagai, Y. Uchida, S. Sakazawa, S. Satoh, "Digital Watermarking for Deep Neural Networks", IJMIR, 2018.
+6. L. Zhang, D. Li, O. Jurečková, M. Stamp, "Steganographic Capacity of Deep Learning Models", 2023.
+7. D. Gilkarov, R. Dubin, "Steganalysis of AI Models LSB Attacks", 2023.
+8. R. Dubin, "Disarming Steganography Attacks Inside Neural Network Models", 2023.
+9. D. Gilkarov, R. Dubin, "Model X-Ray: Detection of Hidden Malware in AI Model Weights using Few Shot Learning", 2024.
